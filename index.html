@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alphaman...  부서 조직도 시스템</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --bg-color: #f8fafc;
+        }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { text-align: center; color: #1e293b; }
+
+        /* 탭 메뉴 */
+        .tabs { display: flex; justify-content: center; margin-bottom: 20px; gap: 10px; }
+        .tab-btn { padding: 10px 20px; cursor: pointer; border: none; background: #e2e8f0; border-radius: 5px; font-weight: bold; }
+        .tab-btn.active { background: var(--primary-color); color: white; }
+
+        /* 섹션 제어 */
+        .section { display: none; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .section.active { display: block; }
+
+        /* 조직도 시각화 (간단한 트리 구조) */
+        .org-chart { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        .member-card { 
+            background: white; border: 2px solid var(--primary-color); 
+            padding: 15px; border-radius: 8px; width: 200px; text-align: center;
+            position: relative;
+        }
+        .member-card .role { font-size: 0.8rem; color: #64748b; margin-bottom: 5px; }
+        .member-card .name { font-weight: bold; font-size: 1.1rem; }
+
+        /* 관리자 폼 */
+        .admin-form { display: grid; gap: 10px; max-width: 400px; margin: 0 auto; }
+        input, select, button { padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; }
+        .btn-save { background: var(--primary-color); color: white; border: none; cursor: pointer; }
+        .member-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏢 부서 조직도</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('user')">조직도 보기</button>
+        <button class="tab-btn" onclick="checkAdmin()">관리자 모드</button>
+    </div>
+
+    <div id="user-section" class="section active">
+        <div id="org-display" class="org-chart">
+            </div>
+    </div>
+
+    <div id="admin-section" class="section">
+        <h3>구성원 추가/관리</h3>
+        <div class="admin-form">
+            <input type="text" id="member-name" placeholder="이름 (예: 홍길동)">
+            <input type="text" id="member-role" placeholder="직함 (예: 팀장)">
+            <select id="member-parent">
+                <option value="">상위 조직장 없음 (최상위)</option>
+            </select>
+            <button class="btn-save" onclick="addMember()">구성원 추가</button>
+        </div>
+        <hr>
+        <div id="member-list-admin">
+            </div>
+    </div>
+</div>
+
+<script>
+    const ADMIN_PW = "9638";
+    let members = JSON.parse(localStorage.getItem('orgData')) || [];
+
+    // 탭 전환
+    function showTab(tab) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        if(tab === 'user') {
+            document.getElementById('user-section').classList.add('active');
+            renderChart();
+        } else {
+            document.getElementById('admin-section').classList.add('active');
+            renderAdminList();
+        }
+    }
+
+    // 관리자 비번 확인
+    function checkAdmin() {
+        const pw = prompt("관리자 비밀번호를 입력하세요.");
+        if(pw === ADMIN_PW) {
+            showTab('admin');
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+        } else {
+            alert("비밀번호가 틀렸습니다.");
+        }
+    }
+
+    // 구성원 추가
+    function addMember() {
+        const name = document.getElementById('member-name').value;
+        const role = document.getElementById('member-role').value;
+        const parent = document.getElementById('member-parent').value;
+
+        if(!name || !role) return alert("이름과 직함을 입력하세요.");
+
+        const newMember = {
+            id: Date.now(),
+            name,
+            role,
+            parent: parent ? parseInt(parent) : null
+        };
+
+        members.push(newMember);
+        saveData();
+        renderAdminList();
+        
+        // 입력창 초기화
+        document.getElementById('member-name').value = '';
+        document.getElementById('member-role').value = '';
+    }
+
+    // 데이터 저장
+    function saveData() {
+        localStorage.setItem('orgData', JSON.stringify(members));
+    }
+
+    // 관리자 리스트 렌더링
+    function renderAdminList() {
+        const listDiv = document.getElementById('member-list-admin');
+        const selectParent = document.getElementById('member-parent');
+        
+        listDiv.innerHTML = '';
+        selectParent.innerHTML = '<option value="">상위 조직장 없음 (최상위)</option>';
+
+        members.forEach(m => {
+            // 삭제 버튼이 포함된 리스트
+            listDiv.innerHTML += `
+                <div class="member-item">
+                    <span><strong>${m.name}</strong> (${m.role})</span>
+                    <button onclick="deleteMember(${m.id})" style="color:red">삭제</button>
+                </div>
+            `;
+            // 상위 조직장 선택 옵션 추가
+            selectParent.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+        });
+    }
+
+    function deleteMember(id) {
+        members = members.filter(m => m.id !== id);
+        saveData();
+        renderAdminList();
+    }
+
+    // 사용자 화면 차트 렌더링 (간단한 수직 리스트 방식)
+    function renderChart() {
+        const display = document.getElementById('org-display');
+        display.innerHTML = '';
+
+        if(members.length === 0) {
+            display.innerHTML = '<p>등록된 데이터가 없습니다. 관리자 모드에서 추가해주세요.</p>';
+            return;
+        }
+
+        // 최상위부터 재귀적으로 표시 (간단 구현을 위해 선형으로 배치)
+        members.forEach(m => {
+            const card = document.createElement('div');
+            card.className = 'member-card';
+            const parentName = m.parent ? members.find(p => p.id === m.parent)?.name : '최상위';
+            card.innerHTML = `
+                <div class="role">${m.role} (상위: ${parentName})</div>
+                <div class="name">${m.name}</div>
+            `;
+            display.appendChild(card);
+        });
+    }
+
+    // 초기 실행
+    renderChart();
+</script>
+
+</body>
+</html>
