@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>부서 조직도 시스템</title>
+    <style>
+        :root { --primary-color: #2563eb; --bg-color: #f8fafc; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-color); margin: 0; padding: 20px; line-height: 1.6; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .tabs { display: flex; justify-content: center; margin-bottom: 20px; gap: 10px; }
+        .tab-btn { padding: 12px 24px; cursor: pointer; border: none; background: #e2e8f0; border-radius: 8px; font-weight: bold; transition: 0.3s; }
+        .tab-btn.active { background: var(--primary-color); color: white; }
+        .section { display: none; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .section.active { display: block; }
+        
+        /* 조직도 시각화 스타일 */
+        .org-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 20px; }
+        .member-card { 
+            background: #fff; border-top: 5px solid var(--primary-color); 
+            padding: 20px; border-radius: 10px; width: 220px; text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s;
+        }
+        .member-card:hover { transform: translateY(-5px); }
+        .member-card .role { font-size: 0.85rem; color: #64748b; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; }
+        .member-card .name { font-weight: 800; font-size: 1.2rem; color: #1e293b; }
+
+        /* 관리자 페이지 전용 스타일 */
+        .admin-box { background: #f1f5f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .form-group { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        input, select, button { padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }
+        input { flex: 1; min-width: 150px; }
+        .btn-add { background: #059669; color: white; border: none; cursor: pointer; font-weight: bold; }
+        .code-output { background: #1e293b; color: #34d399; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; overflow-x: auto; margin-top: 20px; position: relative; }
+        .copy-hint { color: #f59e0b; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 style="text-align:center;">🏢 부서 조직도</h1>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('user')">조직도 보기</button>
+        <button class="tab-btn" onclick="openAdmin()">관리자 모드</button>
+    </div>
+
+    <div id="user-section" class="section active">
+        <div id="org-display" class="org-container"></div>
+    </div>
+
+    <div id="admin-section" class="section">
+        <div class="admin-box">
+            <h3>📝 구성원 추가</h3>
+            <div class="form-group">
+                <input type="text" id="nameInput" placeholder="이름 (예: 홍길동)">
+                <input type="text" id="roleInput" placeholder="직함 (예: 기술총괄)">
+                <button class="btn-add" onclick="addNewMember()">추가하기</button>
+            </div>
+        </div>
+
+        <h3>📋 현재 리스트 (수정 후 아래 코드를 data.js에 붙여넣으세요)</h3>
+        <div id="admin-list"></div>
+
+        <div class="copy-hint">⚠️ 아래 박스 안의 내용을 전체 복사하여 data.js 파일에 덮어쓰기 하세요:</div>
+        <div class="code-output" id="codeOutput"></div>
+    </div>
+</div>
+
+<script src="data.js"></script>
+
+<script>
+    const ADMIN_PW = "9638";
+    let tempMembers = [...orgData]; // data.js에서 불러온 데이터를 임시 변수에 복사
+
+    function switchTab(tab) {
+        document.querySelectorAll('.section, .tab-btn').forEach(el => el.classList.remove('active'));
+        if(tab === 'user') {
+            document.getElementById('user-section').classList.add('active');
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            renderUserChart();
+        } else {
+            document.getElementById('admin-section').classList.add('active');
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            renderAdminTools();
+        }
+    }
+
+    function openAdmin() {
+        if(prompt("관리자 비밀번호를 입력하세요.") === ADMIN_PW) {
+            switchTab('admin');
+        } else {
+            alert("비밀번호가 올바르지 않습니다.");
+        }
+    }
+
+    // 사용자 화면: 조직도 그리기
+    function renderUserChart() {
+        const container = document.getElementById('org-display');
+        container.innerHTML = orgData.length ? '' : '<p>데이터가 없습니다. 관리자 모드에서 설정해주세요.</p>';
+        
+        orgData.forEach(m => {
+            container.innerHTML += `
+                <div class="member-card">
+                    <div class="role">${m.role}</div>
+                    <div class="name">${m.name}</div>
+                </div>`;
+        });
+    }
+
+    // 관리자 화면: 도구 및 코드 생성
+    function renderAdminTools() {
+        const listDiv = document.getElementById('admin-list');
+        listDiv.innerHTML = '';
+        
+        tempMembers.forEach((m, idx) => {
+            listDiv.innerHTML += `
+                <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+                    <span><strong>${m.name}</strong> (${m.role})</span>
+                    <button onclick="deleteMember(${idx})" style="color:red; border:none; background:none; cursor:pointer;">삭제</button>
+                </div>`;
+        });
+
+        // data.js에 넣을 코드 생성
+        const codeText = `const orgData = ${JSON.stringify(tempMembers, null, 4)};`;
+        document.getElementById('codeOutput').innerText = codeText;
+    }
+
+    function addNewMember() {
+        const name = document.getElementById('nameInput').value;
+        const role = document.getElementById('roleInput').value;
+        if(!name || !role) return alert("이름과 직함을 모두 입력하세요.");
+        
+        tempMembers.push({ name, role });
+        document.getElementById('nameInput').value = '';
+        document.getElementById('roleInput').value = '';
+        renderAdminTools();
+    }
+
+    function deleteMember(index) {
+        tempMembers.splice(index, 1);
+        renderAdminTools();
+    }
+
+    // 초기 로딩
+    window.onload = renderUserChart;
+</script>
+
+</body>
+</html>
